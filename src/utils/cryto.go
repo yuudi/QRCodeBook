@@ -4,9 +4,19 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"errors"
 )
+
+var cluster_secret_key [32]byte
+
+func InitKey() {
+	stringKey := []byte(MustGetEnv("CLUSTER_SECRET_KEY"))
+	shaKey := sha256.Sum256(stringKey)
+	copy(cluster_secret_key[:], shaKey[:])
+}
 
 func GenerateCryptoRandomBytes(n int) ([]byte, error) {
 	b := make([]byte, n)
@@ -15,6 +25,17 @@ func GenerateCryptoRandomBytes(n int) ([]byte, error) {
 		return nil, err
 	}
 	return b, nil
+}
+
+func HmacSign(data []byte) []byte {
+	h := hmac.New(sha256.New, cluster_secret_key[:])
+	h.Write(data)
+	return h.Sum(nil)
+}
+
+func HmacVerify(data, signature []byte) bool {
+	expectedSig := HmacSign(data)
+	return hmac.Equal(expectedSig, signature)
 }
 
 func Encrypt(data []byte, key [32]byte) ([]byte, error) {

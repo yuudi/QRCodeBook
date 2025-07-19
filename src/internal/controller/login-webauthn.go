@@ -2,8 +2,8 @@ package controller
 
 import (
 	"net/http"
-	"yuudi/qrcodebook/src/config"
 	"yuudi/qrcodebook/src/internal/model"
+	"yuudi/qrcodebook/src/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -39,7 +39,7 @@ func RegisterBegin(c *gin.Context) {
 
 	// Check if user already exists
 	var existingUser model.User
-	err := config.DB.First(&existingUser, "username = ? OR email = ?", req.Username, req.Email).Error
+	err := model.DB.First(&existingUser, "username = ? OR email = ?", req.Username, req.Email).Error
 	if err == nil {
 		if existingUser.Username == req.Username {
 			c.JSON(http.StatusConflict, gin.H{"error": "Username already exists"})
@@ -61,14 +61,14 @@ func RegisterBegin(c *gin.Context) {
 	}
 
 	// generate webauthn registration options
-	options, sessionData, err := config.WebAuthn.BeginRegistration(&user)
+	options, sessionData, err := utils.WebAuthn.BeginRegistration(&user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate registration options: " + err.Error()})
 		return
 	}
 
 	// Generate JWT token for the session
-	encryptedJWT, err := config.GenerateEncryptedJWT(RegisterSessionData{
+	encryptedJWT, err := utils.GenerateEncryptedJWT(RegisterSessionData{
 		Username:            req.Username,
 		Email:               req.Email,
 		WebauthnSessionData: *sessionData,
@@ -99,7 +99,7 @@ func RegisterFinish(c *gin.Context) {
 
 	// Get session data
 	sessionData := RegisterSessionData{}
-	if err := config.ParseEncryptedJWT(encryptedJWT, &sessionData); err != nil {
+	if err := utils.ParseEncryptedJWT(encryptedJWT, &sessionData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid session: " + err.Error()})
 		return
 	}
@@ -112,14 +112,14 @@ func RegisterFinish(c *gin.Context) {
 	}
 
 	// Finish registration
-	credential, err := config.WebAuthn.FinishRegistration(&user, sessionData.WebauthnSessionData, c.Request)
+	credential, err := utils.WebAuthn.FinishRegistration(&user, sessionData.WebauthnSessionData, c.Request)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Registration verification failed: " + err.Error()})
 		return
 	}
 
 	// Start database transaction
-	tx := config.DB.Begin()
+	tx := model.DB.Begin()
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
@@ -152,12 +152,20 @@ func RegisterFinish(c *gin.Context) {
 		return
 	}
 
-	// Clear session
-	c.SetCookie("webauthn_session", "", -1, "/", "", false, true)
+	// Generate user JWT token and set cookie
+	token, err := user.GetJWTToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate user token: " + err.Error()})
+		return
+	}
+	c.SetCookie("user_session", token, 30*24*3600, "/", "", true, true)
+
+	// Clear registration session
+	c.SetCookie("webauthn_registration_session", "", -1, "/", "", false, true)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Registration successful",
-		"user":    user,
+		"user_id": user.ID,
 	})
 }
 
@@ -174,7 +182,7 @@ func LoginBegin(c *gin.Context) {
 
 	// find user
 	var user model.User
-	if err := config.DB.Preload("Credentials").Where("username = ?", req.Username).First(&user).Error; err != nil {
+	if err := model.DB.Preload("Credentials").Where("username = ?", req.Username).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		} else {
@@ -184,14 +192,14 @@ func LoginBegin(c *gin.Context) {
 	}
 
 	// Generate login options
-	options, sessionData, err := config.WebAuthn.BeginLogin(&user)
+	options, sessionData, err := utils.WebAuthn.BeginLogin(&user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate login options: " + err.Error()})
 		return
 	}
 
 	// Store session data
-	encryptedJWT, err := config.GenerateEncryptedJWT(sessionData, jwt.RegisteredClaims{
+	encryptedJWT, err := utils.GenerateEncryptedJWT(sessionData, jwt.RegisteredClaims{
 		ExpiresAt: jwt.NewNumericDate(sessionData.Expires),
 	})
 	if err != nil {
@@ -218,20 +226,20 @@ func LoginFinish(c *gin.Context) {
 
 	// Get session data
 	sessionData := webauthn.SessionData{}
-	if err := config.ParseEncryptedJWT(encryptedJWT, &sessionData); err != nil {
+	if err := utils.ParseEncryptedJWT(encryptedJWT, &sessionData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Session expired"})
 		return
 	}
 
 	// Find user
 	var user model.User
-	if err := config.DB.Preload("Credentials").First(&user, sessionData.UserID).Error; err != nil {
+	if err := model.DB.Preload("Credentials").First(&user, sessionData.UserID).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find user: " + err.Error()})
 		return
 	}
 
 	// Finish login
-	credential, err := config.WebAuthn.FinishLogin(&user, sessionData, c.Request)
+	credential, err := utils.WebAuthn.FinishLogin(&user, sessionData, c.Request)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "登录验证失败: " + err.Error()})
 		return
@@ -239,19 +247,25 @@ func LoginFinish(c *gin.Context) {
 
 	// Update sign count in the database
 	var dbCred model.Credential
-	if err := config.DB.Where("id = ?", string(credential.ID)).First(&dbCred).Error; err == nil {
+	if err := model.DB.Where("id = ?", string(credential.ID)).First(&dbCred).Error; err == nil {
 		dbCred.WebauthnCredentialJson = datatypes.NewJSONType(*credential)
-		config.DB.Save(&dbCred)
+		model.DB.Save(&dbCred)
 	}
+
+	// Generate user JWT token and set cookie
+	token, err := user.GetJWTToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate user token: " + err.Error()})
+		return
+	}
+	c.SetCookie("user_session", token, 30*24*3600, "/", "", true, true)
 
 	// Clear session
 	c.SetCookie("webauthn_login_session", "", -1, "/", "", false, true)
 
-	// TODO: create user JWT token
-
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Login successful",
-		"user":    user,
+		"user_id": user.ID,
 	})
 }
 

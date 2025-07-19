@@ -1,8 +1,8 @@
-package config
+package model
 
 import (
 	"fmt"
-	"yuudi/qrcodebook/src/internal/model"
+	"yuudi/qrcodebook/src/utils"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -11,12 +11,12 @@ import (
 var DB *gorm.DB
 
 func InitDB() {
-	host := MustGetEnv("DB_HOST")
-	user := MustGetEnv("DB_USER")
-	password := MustGetEnv("DB_PASSWORD")
-	dbname := MustGetEnv("DB_NAME")
-	port := MustGetEnv("DB_PORT")
-	sslmode := MustGetEnv("DB_SSLMODE")
+	host := utils.MustGetEnv("DB_HOST")
+	user := utils.MustGetEnv("DB_USER")
+	password := utils.MustGetEnv("DB_PASSWORD")
+	dbname := utils.MustGetEnv("DB_NAME")
+	port := utils.MustGetEnv("DB_PORT")
+	sslmode := utils.MustGetEnv("DB_SSLMODE")
 
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s", host, user, password, dbname, port, sslmode)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
@@ -24,6 +24,6 @@ func InitDB() {
 		panic("failed to connect database: " + err.Error())
 	}
 
-	db.AutoMigrate(&model.User{}, &model.Credential{})
+	db.AutoMigrate(&User{}, &Credential{})
 	DB = db
 }

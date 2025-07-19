@@ -27,13 +27,25 @@ func SetupRouter() *gin.Engine {
 	// Ping route
 	api.GET("/ping", controller.Ping)
 
-	// WebAuthn routes
+	// User Auth routes
 	auth := api.Group("/auth")
-	auth.POST("/register/begin", controller.RegisterBegin)
-	auth.POST("/register/finish", controller.RegisterFinish)
-	auth.POST("/login/begin", controller.LoginBegin)
-	auth.POST("/login/finish", controller.LoginFinish)
-	auth.POST("/logout", controller.Logout)
+	auth.POST("/salts", controller.GetNewSalt)
+	auth.POST("/register", controller.RegisterUser)
+	auth.POST("/login", controller.LoginUser)
+	auth.GET("/salts/:username", controller.GetUserSalt) // Does not require auth, so outside of user group
+
+	// WebAuthn routes
+	webauthn := api.Group("/webauthn")
+	webauthn.POST("/register/begin", controller.RegisterBegin)
+	webauthn.POST("/register/finish", controller.RegisterFinish)
+	webauthn.POST("/login/begin", controller.LoginBegin)
+	webauthn.POST("/login/finish", controller.LoginFinish)
+
+	api.POST("/logout", controller.Logout)
+
+	// User self routes
+	me := api.Group("/me")
+	me.Use(controller.LoginRequired())
 
 	return r
 }
