@@ -1,0 +1,33 @@
+# This compose file is for local development and testing only!
+# It is not intended for production use.
+
+services:
+  qrcodebook:
+    build: .
+    restart: unless-stopped
+    network_mode: service:db
+    environment:
+      MODE: debug
+      PORT: 8080
+      CLUSTER_SECRET_KEY: ${CLUSTER_SECRET_KEY:-supersecretkey}
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: qrcodebook
+      DB_NAME: qrcodebook
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-qrcodebook}
+      WEBAUTHN_RPID: ${DOMAIN:-localhost}
+      WEBAUTHN_RP_NAME: ${DOMAIN:-QRCodeBook}
+      WEBAUTHN_ORIGINS: ${ORIGINS:-https://${DOMAIN}}
+
+  db:
+    image: postgres:latest
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: qrcodebook
+      POSTGRES_DB: qrcodebook
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-qrcodebook}
+
+volumes:
+  postgres-data:

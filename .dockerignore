@@ -1,0 +1,54 @@
+# Git
+.git/
+.gitignore
+
+# Docker files
+Dockerfile
+.dockerignore
+
+# Development environment
+.devcontainer/
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test files
+*.test
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Environment files
+.env
+*.env
+
+# Go workspace
+go.work
+go.work.sum
+
+# Documentation
+README.md
+*.md
+docs/
+
+# CI/CD
+.github/
+.travis.yml
+.circleci/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

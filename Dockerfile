@@ -8,7 +8,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o dist/main ./main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o "dist/main" .
 
 FROM alpine:latest as runner
 
