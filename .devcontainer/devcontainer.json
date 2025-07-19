@@ -1,0 +1,14 @@
+{
+	"name": "QRCodeBook",
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "app",
+	"workspaceFolder": "/workspaces/qrcodebook",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-ossdata.vscode-pgsql",
+				"golang.go"
+			]
+		}
+	}
+}
