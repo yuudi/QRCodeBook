@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
@@ -40,63 +39,54 @@ func HmacVerify(data, signature []byte) bool {
 }
 
 func Encrypt(data []byte, key [32]byte) ([]byte, error) {
-	paddedData := Pad(data, aes.BlockSize)
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
 		return nil, err
 	}
-	// include iv at the beginning of the ciphertext
-	iv, err := GenerateCryptoRandomBytes(aes.BlockSize)
+
+	// Create GCM mode
+	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, err
 	}
-	ciphertext := make([]byte, aes.BlockSize+len(paddedData))
-	copy(ciphertext[:aes.BlockSize], iv)
-	mode := cipher.NewCBCEncrypter(block, iv)
-	mode.CryptBlocks(ciphertext[aes.BlockSize:], paddedData)
+
+	// Generate nonce
+	nonce, err := GenerateCryptoRandomBytes(gcm.NonceSize())
+	if err != nil {
+		return nil, err
+	}
+
+	// Encrypt and authenticate
+	ciphertext := gcm.Seal(nonce, nonce, data, nil)
 	return ciphertext, nil
 }
 
 func Decrypt(ciphertext []byte, key [32]byte) ([]byte, error) {
-	if len(ciphertext)%aes.BlockSize != 0 {
-		return nil, errors.New("ciphertext is not a multiple of the block size")
-	}
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
 		return nil, err
 	}
-	if len(ciphertext) < aes.BlockSize {
-		return nil, errors.New("ciphertext too short")
-	}
-	iv := ciphertext[:aes.BlockSize]
-	ciphertext = ciphertext[aes.BlockSize:]
-	mode := cipher.NewCBCDecrypter(block, iv)
-	paddedData := make([]byte, len(ciphertext))
-	mode.CryptBlocks(paddedData, ciphertext)
-	unpaddedData, err := Unpad(paddedData)
+
+	// Create GCM mode
+	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, err
 	}
-	return unpaddedData, nil
-}
 
-func Pad(data []byte, blockSize int) []byte {
-	// PKCS#7
-	paddingLength := blockSize - len(data)%blockSize
-	if paddingLength == 0 {
-		paddingLength = blockSize
+	// Check minimum length (nonce + some data)
+	if len(ciphertext) < gcm.NonceSize() {
+		return nil, errors.New("ciphertext too short")
 	}
-	padText := bytes.Repeat([]byte{byte(paddingLength)}, paddingLength)
-	return append(data, padText...)
-}
 
-func Unpad(data []byte) ([]byte, error) {
-	if len(data) == 0 {
-		return nil, errors.New("data is empty")
+	// Extract nonce and ciphertext
+	nonce := ciphertext[:gcm.NonceSize()]
+	ciphertext = ciphertext[gcm.NonceSize():]
+
+	// Decrypt and verify
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, err
 	}
-	padding := data[len(data)-1]
-	if int(padding) > len(data) {
-		return nil, errors.New("invalid padding")
-	}
-	return data[:len(data)-int(padding)], nil
+
+	return plaintext, nil
 }
