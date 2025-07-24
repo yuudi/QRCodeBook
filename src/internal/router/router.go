@@ -48,5 +48,20 @@ func SetupRouter() *gin.Engine {
 	me := api.Group("/me")
 	me.Use(middleware.LoginRequired())
 
+	// Notes routes
+	notes := api.Group("/notes")
+	notes.Use(middleware.LoginRequired())
+	{
+		notes.GET("", controller.GetUserNotes)
+		notes.GET("/basic", controller.GetUserNotesBasic)
+		notes.GET("/stats", controller.GetUserStats)
+		notes.GET("/:note_id", controller.GetNoteContent)
+		notes.GET("/:note_id/versions", controller.GetNoteVersions)
+		notes.GET("/:note_id/versions/:version_no", controller.GetNoteVersionContent)
+		notes.POST("", controller.CreateNote)
+		notes.POST("/:note_id/versions", controller.CreateNoteVersion)
+		notes.DELETE("/:note_id", controller.DeleteNote)
+	}
+
 	return r
 }
