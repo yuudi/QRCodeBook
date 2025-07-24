@@ -8,12 +8,13 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
+	"yuudi/qrcodebook/src/config"
 )
 
 var cluster_secret_key [32]byte
 
 func InitKey() {
-	stringKey := []byte(MustGetEnv("CLUSTER_SECRET_KEY"))
+	stringKey := []byte(config.AppConfig.ClusterSecretKey)
 	shaKey := sha256.Sum256(stringKey)
 	copy(cluster_secret_key[:], shaKey[:])
 }

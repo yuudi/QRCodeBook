@@ -2,7 +2,9 @@ package src
 
 import (
 	"log"
+	"strconv"
 	"yuudi/qrcodebook/src/config"
+	"yuudi/qrcodebook/src/internal/model"
 	"yuudi/qrcodebook/src/internal/router"
 	"yuudi/qrcodebook/src/utils"
 
@@ -10,14 +12,14 @@ import (
 )
 
 func Run() {
-	if err := utils.LoadEnvFromFile(".env"); err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
-	}
 
 	// Initialize all configurations
 	config.Init()
+	utils.InitKey()
+	utils.InitWebAuthn()
+	model.InitDB()
 
-	if utils.GetEnv("MODE") == "production" {
+	if config.AppConfig.Mode == "production" {
 		log.Println("Running in production mode")
 		gin.SetMode(gin.ReleaseMode)
 	} else {
@@ -25,6 +27,6 @@ func Run() {
 	}
 
 	r := router.SetupRouter()
-	port := utils.MustGetEnv("PORT")
+	port := strconv.Itoa(config.AppConfig.Port)
 	r.Run(":" + port)
 }
