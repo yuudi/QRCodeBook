@@ -18,6 +18,11 @@ func InitKey() {
 	copy(cluster_secret_key[:], shaKey[:])
 }
 
+// SetTestKey sets the cluster secret key for testing purposes
+func SetTestKey(key [32]byte) {
+	cluster_secret_key = key
+}
+
 func GenerateCryptoRandomBytes(n int) ([]byte, error) {
 	b := make([]byte, n)
 	_, err := rand.Read(b)

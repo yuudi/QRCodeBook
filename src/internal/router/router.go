@@ -3,6 +3,7 @@ package router
 import (
 	_ "embed" // for embedding static files
 	"yuudi/qrcodebook/src/internal/controller"
+	"yuudi/qrcodebook/src/internal/middleware"
 
 	"github.com/gin-gonic/gin"
 )
@@ -45,7 +46,7 @@ func SetupRouter() *gin.Engine {
 
 	// User self routes
 	me := api.Group("/me")
-	me.Use(controller.LoginRequired())
+	me.Use(middleware.LoginRequired())
 
 	return r
 }
